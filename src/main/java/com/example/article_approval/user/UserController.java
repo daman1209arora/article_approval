@@ -4,12 +4,15 @@ import com.example.article_approval.article.Article;
 import com.example.article_approval.article.ArticleRepository;
 import com.example.article_approval.task.TaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @RestController
@@ -25,11 +28,15 @@ public class UserController {
 
     @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public User findUserById(@PathVariable(value = "id") String id) {
-        Optional<User> user = userRepository.findUserById(id);
-        if(user.isPresent())
-            return user.get();
-        else
-            return null;
+        try {
+            return userRepository.findUserById(id).get();
+        }
+        catch(NoSuchElementException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "User with this ID doesn't exist!"
+            );
+        }
     }
 
     @PostMapping
@@ -38,24 +45,12 @@ public class UserController {
     }
 
     @GetMapping(value = "/articles/created/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public List<Article> findAllDocsCreatedByUser(@PathVariable(value = "id") String id) {
-        Optional<User> user = userRepository.findUserById(id);
-        if(user.isEmpty())
-            return new ArrayList<>();
-        Optional<List<Article>> articles = articleRepository.findArticlesByCreatorId(id);
-        if(articles.isEmpty())
-            return new ArrayList<>();
-        return articles.get();
+    public List<Article> findAllArticlesCreatedByUser(@PathVariable(value = "id") String id) {
+        return articleRepository.findArticlesByCreatorId(id).get();
     }
 
     @GetMapping(value = "/articles/toApprove/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public List<Object> findAllDocsToApprove(@PathVariable(value = "id") String id) {
-        Optional<List<Object>> optionalTaskList = taskRepository.findTasksBySentToIdAndStatus(id, "PENDING");
-        if(optionalTaskList.isEmpty())
-            return new ArrayList<>();
-        return optionalTaskList.get();
+    public List<Object> findAllArticlesToApprove(@PathVariable(value = "id") String id) {
+        return taskRepository.findTasksBySentToIdAndStatus(id, "PENDING");
     }
-
-
-
 }

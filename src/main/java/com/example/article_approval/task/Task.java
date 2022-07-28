@@ -1,8 +1,9 @@
 package com.example.article_approval.task;
 
+import lombok.EqualsAndHashCode;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-
+@EqualsAndHashCode
 @Document("tasks")
 public class Task {
     @Id

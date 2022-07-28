@@ -8,4 +8,7 @@ import java.util.Optional;
 public interface UserRepository extends MongoRepository<User, String> {
     @Query
     Optional<User> findUserById(String id);
+
+    @Query
+    boolean existsById(String id);
 }

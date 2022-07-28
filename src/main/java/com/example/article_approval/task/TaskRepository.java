@@ -11,5 +11,5 @@ public interface TaskRepository extends MongoRepository<Task, String> {
     Optional<Task> findTaskById(String id);
 
     @Query(value="{ 'sentToId' : ?0, 'status' : ?1 }", fields="{ 'articleId' : 1, '_id': 0}")
-    Optional<List<Object>> findTasksBySentToIdAndStatus(String sentToId, String status);
+    List<Object> findTasksBySentToIdAndStatus(String sentToId, String status);
 }

@@ -8,12 +8,15 @@ import com.example.article_approval.user.UserRepository;
 import com.example.article_approval.workflow.Workflow;
 import com.example.article_approval.workflow.WorkflowRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @RestController
@@ -30,15 +33,43 @@ public class ArticleController {
 
     @GetMapping("/{id}")
     public Article findArticleById(@PathVariable(value = "id") String id) {
-        Optional<Article> article = articleRepository.findArticleById(id);
-        if(article.isPresent())
-            return article.get();
-        else
-            return null;
+        try {
+            return articleRepository.findArticleById(id).get();
+        } catch(NoSuchElementException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Article with this ID doesn't exist!"
+            );
+        }
     }
 
     @PostMapping
     public Article createArticle(@Validated @RequestBody Article article) {
+        String creatorId = article.getCreatorId();
+        try {
+            User creator = userRepository.findUserById(creatorId).get();
+            if(!creator.getCanCreateDoc()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Creator with ID "+ creatorId + " can not create an article!"
+                );
+            }
+        } catch (NoSuchElementException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "User with this ID doesn't exist!"
+            );
+        }
+
+        String workflowId = article.getWorkflowId();
+        try {
+            workflowRepository.findWorkflowById(workflowId).get();
+        } catch (NoSuchElementException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Workflow with this ID doesn't exist!"
+            );
+        }
         return articleRepository.save(article);
     }
 
