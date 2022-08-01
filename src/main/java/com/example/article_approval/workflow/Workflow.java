@@ -15,10 +15,10 @@ import java.util.List;
 public class Workflow {
     @Id
     private String id;
-    @Override
-    public String toString() {
-        return "ID: " + id.toString() + " Workflow Name: " + workflowName + " Members: [" + String.join(",",members) + "]";
-    }
+//    @Override
+//    public String toString() {
+//        return "ID: " + id.toString() + " Workflow Name: " + workflowName + " Members: [" + String.join(",",members) + "]";
+//    }
 
     private String workflowName;
     private List<String> members;

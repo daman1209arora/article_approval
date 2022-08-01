@@ -10,7 +10,7 @@ public class Mailer {
     public static void sendEmail(String destEmailId, String content, String subject) {
         final String senderEmailId = "daman.arora@sprinklr.com";
         final String uname = "daman.arora@sprinklr.com";
-        final String pwd = "";
+        final String pwd = "nmrfknbasnunjbpg";
 
         //Set properties and their values
         Properties props = new Properties();

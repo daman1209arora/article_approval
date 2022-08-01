@@ -25,9 +25,9 @@ public class User {
     private Boolean canCreateDoc;
     private String role;
 
-    @Override
-    public String toString() {
-        return "ID:" + id.toString() + " Name: " + name + " Email: " + emailId + " Role: " + role;
-    }
+//    @Override
+//    public String toString() {
+//        return "ID:" + id.toString() + " Name: " + name + " Email: " + emailId + " Role: " + role;
+//    }
 
 }

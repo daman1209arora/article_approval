@@ -3,6 +3,8 @@ package com.example.article_approval;
 import com.example.article_approval.article.Article;
 import com.example.article_approval.article.ArticleController;
 import com.example.article_approval.article.ArticleRepository;
+import com.example.article_approval.task.Task;
+import com.example.article_approval.task.TaskRepository;
 import com.example.article_approval.user.User;
 import com.example.article_approval.user.UserRepository;
 import com.example.article_approval.workflow.Workflow;
@@ -20,8 +22,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.ArrayList;
-import java.util.Optional;
+import java.util.*;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -36,6 +37,8 @@ public class ArticleControllerTests {
     private UserRepository userRepository = mock(UserRepository.class);
 
     private WorkflowRepository workflowRepository = mock(WorkflowRepository.class);
+
+    private TaskRepository taskRepository = mock(TaskRepository.class);
     @InjectMocks
     private ArticleController articleController;
 
@@ -101,7 +104,7 @@ public class ArticleControllerTests {
     }
 
     @Test
-    public void createArticleWithNonExistingCreator_failure() throws Exception {
+    public void createArticle_withNonExistingCreator_failure() throws Exception {
         Article article = new Article("article1Id", "creator1Id", "workflow1Id", "content1", "latestTask1Id", "PENDING");
         Workflow workflow = new Workflow(article.getWorkflowId(), "workflowName", new ArrayList<>());
         Mockito.when(workflowRepository.findWorkflowById(article.getWorkflowId())).thenReturn(Optional.of(workflow));
@@ -118,4 +121,76 @@ public class ArticleControllerTests {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    public void createArticle_withCreatorNotHavingPermission_failure() throws Exception {
+        Article article = new Article("article1Id", "creator1Id", "workflow1Id", "content1", "latestTask1Id", "PENDING");
+        Workflow workflow = new Workflow(article.getWorkflowId(), "workflowName", new ArrayList<>());
+        User user = new User(article.getCreatorId(), "name1", "user1@gmail.com", false, "role1");
+        Mockito.when(workflowRepository.findWorkflowById(article.getWorkflowId())).thenReturn(Optional.of(workflow));
+        Mockito.when(userRepository.findUserById(article.getCreatorId())).thenReturn(Optional.of(user));
+        Mockito.when(articleRepository.save(article)).thenReturn(article);
+
+        String content = objectWriter.writeValueAsString(article);
+        MockHttpServletRequestBuilder mockRequest = MockMvcRequestBuilders.post("/api/article/")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(content);
+
+        mockMvc.perform(mockRequest)
+                .andExpect(status().isBadRequest());
+    }
+
+
+
+    @Test
+    public void initiateArticleApproval_success() throws Exception {
+        User user1 = new User("user1Id", "username1", "user1@gmail.com", true, "user1Role");
+        User user2 = new User("user2Id", "username2", "daman1209arora@gmail.com", true, "user2Role");
+        User user3 = new User("user3Id", "username3", "user3@gmail.com", true, "user3Role");
+        List<String> workflowUsers = new ArrayList<>(Arrays.asList(user2.getId(), user3.getId()));
+        Workflow workflow = new Workflow("workflow1Id", "workflowName", workflowUsers);
+        Article article = new Article("article1Id", user1.getId(), workflow.getId(), "content1", "", "PENDING");
+        Task taskToSave = new Task(null, article.getId(), user1.getId(), user2.getId(), "", "PENDING");
+        Task task = new Task("task1Id", article.getId(), user1.getId(), user2.getId(), "", "PENDING");
+        Article modifiedArticle = new Article("article1Id", user1.getId(), workflow.getId(), "content1", task.getId(), "PENDING");
+
+        User user = new User(article.getCreatorId(), "name1", "user1@gmail.com", false, "role1");
+        Map<String, String> body = new HashMap<>();
+        body.put("articleId", article.getId());
+        body.put("userId", user.getId());
+        Mockito.when(articleRepository.findArticleById(article.getId())).thenReturn(Optional.of(article));
+        Mockito.when(workflowRepository.findWorkflowById(workflow.getId())).thenReturn(Optional.of(workflow));
+        Mockito.when(taskRepository.save(taskToSave)).thenReturn(task);
+        Mockito.when(articleRepository.save(modifiedArticle)).thenReturn(modifiedArticle);
+        Mockito.when(userRepository.findUserById(user2.getId())).thenReturn(Optional.of(user2));
+
+        String content = objectWriter.writeValueAsString(body);
+
+        MockHttpServletRequestBuilder mockRequest = MockMvcRequestBuilders.post("/api/article/initiate/")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(content);
+
+        mockMvc.perform(mockRequest)
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    public void initiateArticleApproval_withArticleNotExisting_failure() throws Exception {
+        String fakeArticleId = "fakeArticleId";
+        String fakeUserId = "fakeUserId";
+        Map<String, String> body = new HashMap<>();
+        body.put("articleId", fakeArticleId);
+        body.put("userId", fakeUserId);
+        Mockito.when(articleRepository.findArticleById(fakeArticleId)).thenReturn(Optional.empty());
+        String content = objectWriter.writeValueAsString(body);
+
+        MockHttpServletRequestBuilder mockRequest = MockMvcRequestBuilders.post("/api/article/initiate/")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(content);
+
+        mockMvc.perform(mockRequest)
+                .andExpect(status().isBadRequest());
+    }
 }
