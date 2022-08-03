@@ -12,4 +12,6 @@ public interface TaskRepository extends MongoRepository<Task, String> {
 
     @Query(value="{ 'sentToId' : ?0, 'status' : ?1 }", fields="{ 'articleId' : 1, '_id': 0}")
     List<Object> findTasksBySentToIdAndStatus(String sentToId, String status);
+    @Query
+    void deleteAllByArticleId(String articleId);
 }

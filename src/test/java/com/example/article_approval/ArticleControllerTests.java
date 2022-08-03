@@ -193,4 +193,24 @@ public class ArticleControllerTests {
         mockMvc.perform(mockRequest)
                 .andExpect(status().isBadRequest());
     }
+
+
+    @Test
+    public void finishTask_invalidArticle_failure() throws Exception {
+        String fakeArticleId = "fakeArticleId";
+        String fakeUserId = "fakeUserId";
+        Map<String, String> body = new HashMap<>();
+        body.put("articleId", fakeArticleId);
+        body.put("userId", fakeUserId);
+        Mockito.when(articleRepository.findArticleById(fakeArticleId)).thenReturn(Optional.empty());
+        String content = objectWriter.writeValueAsString(body);
+
+        MockHttpServletRequestBuilder mockRequest = MockMvcRequestBuilders.post("/api/article/finish/")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(content);
+
+        mockMvc.perform(mockRequest)
+                .andExpect(status().isBadRequest());
+    }
 }

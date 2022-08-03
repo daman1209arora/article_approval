@@ -17,17 +17,6 @@ public class ArticleApprovalApplication implements CommandLineRunner {
     public static void main(String[] args) {
         SpringApplication.run(ArticleApprovalApplication.class, args);
     }
-    public void run(String... args) {
-//        articleRepository.save(
-//                new Article(
-//                    "62c7c4d371978b345496b606",
-//                    "62c7d90e1e1c9636c29a8ef6",
-//                    "Starting Spring Boot",
-//                    "",
-//                    "PENDING"
-//                )
-//        );
-//        System.out.println(articleRepository.findArticleById("62d9b19999507222894b92d2"));
-    }
+    public void run(String... args) {}
 
 }

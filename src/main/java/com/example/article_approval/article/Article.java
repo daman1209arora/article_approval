@@ -18,11 +18,4 @@ public class Article {
     private String documentContent;
     private String latestTaskId;
     private String articleStatus;
-
-//    @Override
-//    public String toString() {
-//        return "ID:" + id.toString() + " CreatorId: " + creatorId + " WorkflowId: "
-//                + workflowId + " DocumentContent: " + documentContent + " LatestTaskId: " + latestTaskId
-//                + " ArticleStatus: " + articleStatus;
-//    }
 }

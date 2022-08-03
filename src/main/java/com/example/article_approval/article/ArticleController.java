@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -73,11 +74,56 @@ public class ArticleController {
         return articleRepository.save(article);
     }
 
-    @PostMapping("/initiate/")
-    public Task initiateArticleApproval(@Validated @RequestBody Map<String, String> body) {
+    @PutMapping("/update/")
+    public ResponseEntity updateArticle(@Validated @RequestBody Map<String, String> body) {
         String articleId = body.get("articleId");
         String userId = body.get("userId");
-        System.out.println("Got " + articleId + " " + userId);
+        String newContent = body.get("documentContent");
+        Optional<Article> optionalArticle = articleRepository.findArticleById(articleId);
+        if (optionalArticle.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Article with this ID doesn't exist!"
+            );
+        }
+        Article article = optionalArticle.get();
+        String creatorId = article.getCreatorId();
+        if (userId.equals(creatorId) && article.getArticleStatus().equals("PENDING")) {
+            String latestTaskId = article.getLatestTaskId();
+            Boolean noTask = latestTaskId.equals("");
+            if(noTask) {
+                article.setDocumentContent(newContent);
+                articleRepository.save(article);
+                return ResponseEntity.ok().build();
+            }
+            else {
+                Task latestTask = taskRepository.findTaskById(latestTaskId).get();
+                if (latestTask.getSentToId().equals(creatorId) && latestTask.getStatus().equals("PENDING")) {
+                    article.setDocumentContent(newContent);
+                    articleRepository.save(article);
+                    return ResponseEntity.ok().build();
+                }
+                else {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Bad state!"
+                    );
+                }
+
+            }
+        }
+        else {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Not the creator or bad state!"
+            );
+        }
+    }
+
+    @PostMapping("/initiate/")
+    public ResponseEntity initiateArticleApproval(@Validated @RequestBody Map<String, String> body) {
+        String articleId = body.get("articleId");
+        String userId = body.get("userId");
         Optional<Article> optionalArticle = articleRepository.findArticleById(articleId);
         if(optionalArticle.isEmpty()) {
             throw new ResponseStatusException(
@@ -87,11 +133,12 @@ public class ArticleController {
         }
         Article article = optionalArticle.get();
         String creatorId = article.getCreatorId();
-        if(userId.equals(creatorId)) {
+        if(userId.equals(creatorId) && article.getArticleStatus().equals("PENDING")) {
             String latestTaskId = article.getLatestTaskId();
             Boolean noTask = latestTaskId.equals("");
             if(noTask) {
-                return createAndAssignNextTask(articleId, article, creatorId);
+                createAndAssignNextTask(articleId, article, creatorId);
+                return ResponseEntity.ok().build();
             }
             else {
                 Task latestTask = taskRepository.findTaskById(latestTaskId).get();
@@ -99,7 +146,8 @@ public class ArticleController {
                     // Change status of latestTask
                     latestTask.setStatus("APPROVED");
                     taskRepository.save(latestTask);
-                    return createAndAssignNextTask(articleId, article, creatorId);
+                    createAndAssignNextTask(articleId, article, creatorId);
+                    return ResponseEntity.ok().build();
                 }
                 else {
                     throw new ResponseStatusException(
@@ -128,82 +176,91 @@ public class ArticleController {
         articleRepository.save(article);
 
         String destEmailId = userRepository.findUserById(firstApprover).get().getEmailId();
-        Mailer.sendEmail(destEmailId, article.getDocumentContent(), "Document for approval");
+//        Mailer.sendEmail(destEmailId, article.getDocumentContent(), "Document for approval");
         return createdTask;
     }
 
     @PostMapping("/finish/")
     public ResponseEntity finishTask(@Validated @RequestBody Map<String, String> body) {
         String userId = body.get("userId");
-        String taskId = body.get("taskId");
+        String articleId = body.get("articleId");
         String action = body.get("action");
         String comment = body.get("comment");
-
-        Optional<Task> optionalTask = taskRepository.findTaskById(taskId);
-        if(optionalTask.isEmpty())
-            return ResponseEntity.notFound().build();
-        Task task = optionalTask.get();
-        String articleId = task.getArticleId();
-
         Optional<Article> optionalArticle = articleRepository.findArticleById(articleId);
-        if(optionalArticle.isEmpty())
-            return ResponseEntity.notFound().build();
+        if(optionalArticle.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Article doesn't exist!"
+            );
+        }
         Article article = optionalArticle.get();
+        String taskId = article.getLatestTaskId();
+        if(taskId.equals("")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No tasks assigned yet!"
+            );
+        }
+
+        Task task = taskRepository.findTaskById(taskId).get();
 
         String workflowId = article.getWorkflowId();
         String creatorId = article.getCreatorId();
-        if(article.getLatestTaskId().equals(taskId)) {
-            if(task.getSentToId().equals(userId) && task.getStatus().equals("PENDING")) {
-                Optional<Workflow> optionalWorkflow = workflowRepository.findWorkflowById(workflowId);
-                if(optionalWorkflow.isEmpty())
-                    return ResponseEntity.notFound().build();
-                Workflow workflow = optionalWorkflow.get();
+        if(task.getSentToId().equals(userId) && task.getStatus().equals("PENDING")) {
+            Workflow workflow = workflowRepository.findWorkflowById(workflowId).get();
+            if(action.equals("REJECT")) {
+                // Create new task for creator
+                String newTaskId = taskRepository.save(new Task(null, articleId, userId, creatorId, comment, "PENDING")).getId();
 
-                if(action.equals("REJECT")) {
-                    // Create new task for creator
-                    String newTaskId = taskRepository.save(new Task(null, articleId, userId, creatorId, comment, "PENDING")).getId();
+                article.setLatestTaskId(newTaskId);
+                articleRepository.save(article);
 
-                    article.setLatestTaskId(newTaskId);
-                    articleRepository.save(article);
+                task.setStatus("REJECTED");
+                taskRepository.save(task);
 
-                    task.setStatus("REJECTED");
-                    taskRepository.save(task);
+                String destEmailId = userRepository.findUserById(creatorId).get().getEmailId();
+//                    Mailer.sendEmail(destEmailId, article.getDocumentContent(), "Document rejected");
 
-                    String destEmailId = userRepository.findUserById(creatorId).get().getEmailId();
-                    Mailer.sendEmail(destEmailId, article.getDocumentContent(), "Document rejected");
-
-                    return ResponseEntity.ok().build();
+                return ResponseEntity.ok().build();
+            }
+            else {
+                // Check if someone is next in line
+                List<String> members = workflow.getMembers();
+                int index = members.indexOf(userId);
+                if(index == (members.size() - 1)) {
+                    article.setLatestTaskId("");
+                    article.setArticleStatus("APPROVED");
                 }
                 else {
-                    // Check if someone is next in line
-                    List<String> members = workflow.getMembers();
-                    int index = members.indexOf(userId);
-                    if(index == (members.size() - 1)) {
-                        article.setLatestTaskId("");
-                        article.setArticleStatus("APPROVED");
+                    String nextUserId = members.get(index+1);
+                    // Create new task for next approver
+                    String newTaskId = taskRepository.save(new Task(null, articleId, userId, nextUserId, comment, "PENDING")).getId();
+                    article.setLatestTaskId(newTaskId);
 
-                    }
-                    else {
-                        String nextUserId = members.get(index+1);
-                        // Create new task for next approver
-                        String newTaskId = taskRepository.save(new Task(null, articleId, userId, nextUserId, comment, "PENDING")).getId();
-                        article.setLatestTaskId(newTaskId);
-
-                        String destEmailId = userRepository.findUserById(nextUserId).get().getEmailId();
-                        Mailer.sendEmail(destEmailId, article.getDocumentContent(), "Mail for approval");
-                    }
-                    articleRepository.save(article);
-                    task.setStatus("APPROVED");
-                    taskRepository.save(task);
-                    return ResponseEntity.ok().build();
+                    String destEmailId = userRepository.findUserById(nextUserId).get().getEmailId();
+//                        Mailer.sendEmail(destEmailId, article.getDocumentContent(), "Mail for approval");
                 }
+                articleRepository.save(article);
+                task.setStatus("APPROVED");
+                taskRepository.save(task);
+                return ResponseEntity.ok().build();
             }
-            else
-                return ResponseEntity.notFound().build();
         }
-        else
-            return ResponseEntity.notFound().build();
+        else{
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Either this user can't approve this task or it has already been approved!"
+            );
+        }
     }
-
-
+    @PostMapping("/reset/")
+    public ResponseEntity resetArticle(@Validated @RequestBody Map<String, String> body) {
+        String articleId = body.get("articleId");
+        Article article = articleRepository.findArticleById(articleId).get();
+        article.setArticleStatus("PENDING");
+        article.setLatestTaskId("");
+        articleRepository.save(article);
+        taskRepository.deleteAllByArticleId(articleId);
+        return ResponseEntity.ok().build();
+    }
 }
